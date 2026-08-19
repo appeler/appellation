@@ -1,9 +1,8 @@
 # Adoption
 
-Status as of 2026-08-19, from reading each repository at its branch tip.
-Version states name what is on PyPI versus what is built locally, because
-two packages have unpublished breaking releases that migration should fold
-into.
+Status as of 2026-08-19. Instate and pranaam are migrated and released.
+Outkast still has an unpublished breaking release that its migration should
+fold into, so users take one break rather than two.
 
 ## Status
 
@@ -75,21 +74,25 @@ afterwards caught prior shifting turning an abstaining row's missing score
 into a certain 1.0. That is fixed and tested, but the release is worth a
 second pass when a reviewer is available.
 
-### instate (3.0.0 in review, PyPI has 2.0.0)
+### instate (3.0.0 on PyPI, released 2026-08-19)
 
 Migrated ([#53](https://github.com/appeler/instate/pull/53)): composition
 API under contract 1.1, retrained and temperature-scaled model with
 untouched-test metrics (modal top-1 0.534 / top-3 0.770), census-based
 language shares replacing the geometric weights, artifacts on the pinned
 Hub revision with per-file SHA-256, wheel down from 34.5 MB to 50 KB. The
-2.1.0 build was skipped; everything ships as 3.0.0. Remaining after merge:
-an interval mechanism to meet the uncertainty bar, and release to PyPI.
+2.1.0 build was skipped; everything shipped as 3.0.0. Remaining: an
+interval mechanism to meet the uncertainty bar. Pranaam's Monte Carlo
+dropout is the closest precedent.
 
 ## Sequencing
 
-Outkast first, because its unpublished 2.0.0 is a closing window. Then
-naampy and pranaam, each a small breaking release. ethnicolr's own 1.1
-bump can ride any of these. Instate last and started early, because
-retraining is the only long-running work. The shared conformance test
-suite is worth building after the second conforming package, when the
-duplication is real rather than predicted.
+Instate and pranaam are done. Outkast is next, because its unpublished
+2.0.0 is a closing window, then naampy, then ethnicolr's own 1.1 bump.
+
+A shared contract package was weighed after the second migration and
+declined: the maintainer prefers each package owning its contract code over
+a fleet-wide dependency. Keep the copies in step by hand and treat any
+divergence between them as a defect. Instate's `_contract.py` is the
+composition-form reference and pranaam's is the score-form one; copy from
+whichever matches the package's result form.
