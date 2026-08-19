@@ -9,16 +9,24 @@ into.
 
 | Standard | ethnicolr | naampy | pranaam | outkast | instate |
 | --- | --- | --- | --- | --- | --- |
-| Verbs (`lookup_*` / `estimate_*`) | yes | yes | yes | yes | no |
-| Canonical signature (`data`, `*_column`, keyword-only) | yes | no, sequence-only | no, sequence-only | close, arg named `frame` | partial |
-| 0 to 1 calibrated probabilities | yes | yes | yes | yes, proportions | no probabilities at all |
-| Explicit abstention, shared reasons | yes | yes, hyphenated | yes, hyphenated | yes, own `secc_*` names, underscores | lookups silently NaN |
-| Contract columns | 1.0 in full | parallel names, gaps | right columns, hand-built inline | own vocabulary | absent |
-| Uncertainty mechanism | conformal, MC, Wilson, prior | none in API | none, fixed 0.8 threshold | none, enumeration | none |
-| Artifacts on HF, SHA-pinned | yes | yes, plus per-file SHA-256 | yes, plus per-file SHA-256 | vendored, 628 KB, hash in source | models yes, 35 MB tables in wheel |
+| Verbs (`lookup_*` / `estimate_*`) | yes | yes | yes | yes | yes |
+| Canonical signature (`data`, `*_column`, keyword-only) | yes | no, sequence-only | no, sequence-only | close, arg named `frame` | yes |
+| 0 to 1 calibrated probabilities | yes | yes | yes | yes, proportions | yes, temperature-scaled |
+| Explicit abstention, shared reasons | yes | yes, hyphenated | yes, hyphenated | yes, own `secc_*` names, underscores | yes, hyphenated |
+| Contract columns | 1.0 in full | parallel names, gaps | right columns, hand-built inline | own vocabulary | 1.1 in full, composition form |
+| Uncertainty mechanism | conformal, MC, Wilson, prior | none in API | none, fixed 0.8 threshold | none, enumeration | calibration only; intervals open |
+| Artifacts on HF, SHA-pinned | yes | yes, plus per-file SHA-256 | yes, plus per-file SHA-256 | vendored, 628 KB, hash in source | yes, plus per-file SHA-256 |
 | Runtime Parquet and JSON, no CSV | yes | yes | yes, no tables | yes | yes |
 | Non-identity framing | yes | yes | yes | yes | yes |
-| Evaluation contract met by shipped artifacts | yes | yes | yes | not applicable | no, checkpoints predate it |
+| Evaluation contract met by shipped artifacts | yes | yes | yes | not applicable | yes |
+
+Instate's column reads its 3.0 branch
+([appeler/instate#53](https://github.com/appeler/instate/pull/53)), the
+first migration completed under this standard and the first emitter of
+contract 1.1. Its language target also moved from invented geometric
+weights to Census 2011 C-16 mother-tongue shares, and a recorded experiment
+justifies deriving language from the state composition instead of training
+a second model (held-out log loss 1.523 for the transform vs 1.566 direct).
 
 ## Migration items
 
@@ -61,18 +69,15 @@ option, which matters most for a binary estimator. Delete the dead v1/v2
 `pranaam/model.py` and its tests, which prop up the coverage floor. Fix the
 copier answer that still reads "Predict religion from names."
 
-### instate (2.1.0 built, PyPI has 2.0.0)
+### instate (3.0.0 in review, PyPI has 2.0.0)
 
-The long pole, and mostly science rather than renames. Calibrate, and
-likely retrain under the package's own evaluation contract, so it can
-expose probabilities at all; the shipped checkpoints predate that contract
-and have no publishable metrics. Rename `get_state_distribution` to
-`lookup_*` and `predict_state` and `predict_language` to `estimate_*`, with
-the canonical signature. Make lookup abstention explicit instead of NaN
-rows. Move the 26.6 MB and 8.2 MB Parquet tables to the already-pinned
-`gojiberries/instate` revision; the resolver in `_resources.py` needs no
-redesign. Decide whether 2.1.0 ships first as-is or waits for the
-contract release.
+Migrated ([#53](https://github.com/appeler/instate/pull/53)): composition
+API under contract 1.1, retrained and temperature-scaled model with
+untouched-test metrics (modal top-1 0.534 / top-3 0.770), census-based
+language shares replacing the geometric weights, artifacts on the pinned
+Hub revision with per-file SHA-256, wheel down from 34.5 MB to 50 KB. The
+2.1.0 build was skipped; everything ships as 3.0.0. Remaining after merge:
+an interval mechanism to meet the uncertainty bar, and release to PyPI.
 
 ## Sequencing
 
