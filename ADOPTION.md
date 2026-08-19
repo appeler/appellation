@@ -10,11 +10,11 @@ into.
 | Standard | ethnicolr | naampy | pranaam | outkast | instate |
 | --- | --- | --- | --- | --- | --- |
 | Verbs (`lookup_*` / `estimate_*`) | yes | yes | yes | yes | yes |
-| Canonical signature (`data`, `*_column`, keyword-only) | yes | no, sequence-only | no, sequence-only | close, arg named `frame` | yes |
+| Canonical signature (`data`, `*_column`, keyword-only) | yes | no, sequence-only | yes | close, arg named `frame` | yes |
 | 0 to 1 calibrated probabilities | yes | yes | yes | yes, proportions | yes, temperature-scaled |
 | Explicit abstention, shared reasons | yes | yes, hyphenated | yes, hyphenated | yes, own `secc_*` names, underscores | yes, hyphenated |
-| Contract columns | 1.0 in full | parallel names, gaps | right columns, hand-built inline | own vocabulary | 1.1 in full, composition form |
-| Uncertainty mechanism | conformal, MC, Wilson, prior | none in API | none, fixed 0.8 threshold | none, enumeration | calibration only; intervals open |
+| Contract columns | 1.0 in full | parallel names, gaps | 1.1 in full, score form | own vocabulary | 1.1 in full, composition form |
+| Uncertainty mechanism | conformal, MC, Wilson, prior | none in API | Monte Carlo dropout, prior shift | none, enumeration | calibration only; intervals open |
 | Artifacts on HF, SHA-pinned | yes | yes, plus per-file SHA-256 | yes, plus per-file SHA-256 | vendored, 628 KB, hash in source | yes, plus per-file SHA-256 |
 | Runtime Parquet and JSON, no CSV | yes | yes | yes, no tables | yes | yes |
 | Non-identity framing | yes | yes | yes | yes | yes |
@@ -59,15 +59,21 @@ computed for the model card as `_lower` and `_upper` columns. Decide
 deliberately whether the dropped state and birth-year conditioning returns;
 the standard does not force it, but the silence should end.
 
-### pranaam (0.8.0 on PyPI)
+### pranaam (0.9.0 on PyPI, released 2026-08-19)
 
-Adopt the canonical DataFrame signature with keyword-only options. Replace
-the hand-built inline contract block with 1.1 columns, including
-`result_form` and `inference_contract_version`. Make the abstention
-threshold a keyword option instead of the fixed 0.8, and add a prior-shift
-option, which matters most for a binary estimator. Delete the dead v1/v2
-`pranaam/model.py` and its tests, which prop up the coverage floor. Fix the
-copier answer that still reads "Predict religion from names."
+Migrated ([#60](https://github.com/appeler/pranaam/pull/60)): contract 1.1
+score form, canonical signature, blanks abstain instead of raising, Monte
+Carlo dropout intervals and a prior-shift option, dead v1 and v2 module
+deleted, copier description fixed. The label went away rather than moving:
+for a binary target it is a cutoff applied on the caller's behalf and
+carries no information the score does not, so `uncertain-score` abstention
+went with it. First package to meet the uncertainty bar.
+
+Released without the independent second-model review, which the maintainer
+accepted knowingly when both reviewers were unavailable. A self-review
+afterwards caught prior shifting turning an abstaining row's missing score
+into a certain 1.0. That is fixed and tested, but the release is worth a
+second pass when a reviewer is available.
 
 ### instate (3.0.0 in review, PyPI has 2.0.0)
 
