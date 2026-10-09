@@ -1,138 +1,286 @@
 # The appeler standard
 
-This document rules on everything around a result that [CONTRACT.md](CONTRACT.md)
-does not: how public functions are named and called, what probabilities and
-uncertainty a package must offer, how artifacts are stored and verified, and
-what evaluation a shipped model must have passed. Rules use must, should,
-and may in their usual normative senses. Where a rule reverses something a
-fleet package currently does, [ADOPTION.md](ADOPTION.md) carries the
-migration item; there are no compatibility aliases or shims.
+Version 1.2.
+
+This standard defines what evidence must accompany a name-analysis operation.
+[CONTRACT.md](CONTRACT.md) defines its returned rows. A package may satisfy that
+output contract while lacking evidence for calibration, uncertainty, or use in
+another population. These assessments must remain separate.
+
+The requirements below are normative. `Must` is required; `should` permits a
+documented, evidence-based exception; `may` is optional. Identifiers refer to
+requirements within this version. Examples and tools help apply the requirements
+but do not replace them.
+
+## Target and reference data
+
+**D01:** Each public operation must have an [evidence record](EVIDENCE.md)
+linked from its documentation and identified by the artifact manifest. Define
+the quantity being estimated before choosing a model or uncertainty method. The
+record must specify:
+
+- Input unit, required context, normalization, supported scripts and lengths,
+  and any transformations that lose information.
+- Source and label provenance, geography, collection period, observation unit,
+  duplicate handling, selection, exclusions, and disclosure limits.
+- Target categories, numerator, denominator, conditioning variables, and
+  weighting. Distinguish source records from unique people and observed source
+  labels from personal identity.
+- Intended application population and the evidence supporting use there. Missing
+  evidence must be recorded as unassessed.
+
+For example, a female-label share among retained female and male electoral
+records has a different denominator from a share among all source labels or all
+residents. Renormalizing retained categories or suppressing cells changes the
+quantity and must be disclosed. A broad target name such as `race-ethnicity` is
+only a key into this definition.
+
+## Requirements by operation
+
+**D02:** Assign each operation a basis below, independently of its result form
+(`label`, `score`, or `composition`). A hybrid must identify the basis used for
+each row and satisfy the requirements of each path.
+
+| Basis               | What the result represents                           | Required evidence                                                                                                                                |
+| ------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Lookup              | A descriptive quantity in a specified table          | Source and denominator audit, count/share reconciliation, coverage, and suppression checks; sampling inference only when justified               |
+| Learned model       | An estimate from fitted parameters                   | Separate development and evaluation data, probabilistic performance, calibration assessment, and uncertainty appropriate to the claimed quantity |
+| Derived calculation | A transformation or combination of source quantities | Formula, all source revisions, assumptions, aligned categories and populations, and evaluation of any claim beyond the calculation itself        |
+
+An exact lookup needs no train/test split to establish that it reproduces its
+table. Its use to estimate another population does require evidence. A
+composition produced by a model still needs model evaluation.
 
 ## Verbs and signatures
 
-Public functions use two verbs. `lookup_*` returns values from a published
-name table. `estimate_*` combines evidence or runs a statistical model. No
-public function uses `get_`, `predict_`, `pred_`, or a bare noun. The verb
-is a claim about epistemic status: a lookup reports what a source says, an
-estimate is the package's own inference, and a user must be able to tell
-which they are holding from the call site alone.
+**A01:** Public name-analysis functions use `lookup_*` for a table lookup and
+`estimate_*` for a model or derived calculation. A lookup must not silently fall
+back to a model. Metadata utilities may use descriptive verbs such as `list_*`.
 
-The canonical signature takes a DataFrame and the name of the column to
-read, with every option keyword-only:
+The canonical signature takes a DataFrame and an input-column name, with options
+keyword-only:
 
 ```python
 estimate_target(data: pd.DataFrame, surname_column: str, *, ...) -> pd.DataFrame
 ```
 
-Column arguments are `surname_column`, `first_name_column`, and
-`name_column`, matching the input scope. The frame argument is `data`,
-never `frame` or `df`. The function returns a copy of the input with result
-columns appended, preserving row count, order, and index, and never mutates
-its input. A package whose natural input is a single name column may also
-accept `str`, `list[str]`, or `pd.Series` and return a fresh frame in input
-order, provided the result columns and semantics are identical to the
-DataFrame form.
+Column arguments are `surname_column`, `first_name_column`, or `name_column`, as
+appropriate. Required contextual columns or scalar options must be documented.
+The frame argument is `data`.
 
-Invalid calls raise; ambiguous rows abstain. A missing column, a duplicate
-column, or an option value outside its domain is a programming error and
-raises immediately. A name the package cannot score is data, and is
-reported through the contract's abstention columns, never through an
-exception and never through a silently missing or NaN row.
+**A02:** Return a copy with result columns appended; preserve row count, order,
+and index, including duplicate indices and empty inputs. Do not mutate the
+input. Handle reserved-column collisions as specified in the contract. A
+single-name-column operation may additionally accept a string, sequence, or
+Series with identical result semantics.
 
-## Probabilities and abstention
+**A03:** Invalid calls raise; unsupported observations abstain. Missing or
+duplicate columns and invalid option types raise immediately. A name or context
+outside the artifact's documented domain yields an abstention reason. Preserve
+that row with missing estimates.
 
-Every probability, score, and proportion is on the 0 to 1 scale.
-Percentages do not appear in results.
+## Probabilities, calibration, and abstention
 
-A package must not assign a default or prior distribution to an input it
-cannot support. Unsupported inputs abstain, with a reason from the
-contract's shared vocabulary. Returning the marginal distribution for an
-unknown name is the failure mode this fleet was rebuilt to eliminate: it
-manufactures a confident-looking answer precisely where the package knows
-least.
+**P01:** Probabilities and proportions use the 0 to 1 scale. A model must not
+return a default distribution for an unsupported input. An unseen name is not
+necessarily unsupported: a model may generalize to unseen names within an
+evaluated input domain. A lookup miss must abstain.
 
-Model scores must be calibrated before release, and `calibration_status`
-must say how. Raw softmax output or raw logits are not a result. A package
-that cannot yet calibrate a model does not expose that model's
-probabilities.
+**P02:** Before release, a learned probability estimate must pass a documented
+calibration assessment on held-out data under criteria chosen before inspecting
+final test results. Report the assessment population, unit, weighting,
+reliability diagnostics, log loss or Brier score, and uncertainty at the
+independent unit. Report relevant strata and unsupported or sparse strata. No
+universal error threshold applies to every task; the evidence record must state
+and justify the acceptance criteria.
 
-## The uncertainty bar
+Post-hoc calibration is optional when the unadjusted model meets those criteria.
+When fitted, report its fitting data and compare adjusted and unadjusted
+probabilities on the same untouched evaluation set. Applying temperature or
+Platt scaling alone is not validation. These methods are procedures whose
+performance must be measured
+([Guo et al., 2017](https://proceedings.mlr.press/v70/guo17a.html)).
 
-The bar differs by what stands behind the number, because the honest
-uncertainty statement differs.
+`calibration_status` must distinguish an assessment that passed its stated
+criteria from one that failed or was not performed, and identify any adjustment
+method. Package documentation must define the values; the evidence record
+supplies the criteria and results. A direct descriptive lookup reports
+`not-applicable`. A derived probability claim needs its own assessment;
+component calibration does not establish calibration of the derived output. A
+derived descriptive mixture may report `not-applicable` only when explicitly
+limited to that calculation.
 
-A model package must always emit `calibration_status`, and must offer at
-least one interval or set-valued mechanism: a conformal prediction set at a
-requested coverage, a bootstrap or ensemble interval, or Monte Carlo
-dropout summaries, using the contract's column naming. It must expose its
-abstention threshold as a keyword option rather than a constant, and, for
-label and score forms, should offer a prior-shift option so users can
-adapt estimates to a target population with a different base rate.
+Models that fail or lack the required assessment must not expose their scores as
+validated probabilities in a conforming release. Developmental results must be
+identified as such and cannot receive an empirical-support pass.
 
-A lookup package over a sample must offer sampling intervals, such as
-Wilson intervals on count-based proportions. A lookup package over an
-enumeration has no sampling uncertainty to report and must not invent one;
-its obligation is to document coverage and any disclosure suppression, and
-to abstain with `insufficient-evidence` where suppression bites.
+**P03:** An ambiguous supported score or composition remains a valid answer. Do
+not require a classification threshold for an operation that does not return a
+label. Where a decision rule abstains, expose its threshold as a keyword option
+and report performance and coverage under that rule. Never present performance
+among answered rows as performance on all inputs.
 
-## Artifacts
+## Uncertainty
 
-Runtime tables are typed Parquet validated against an explicit Arrow
-schema at load. Vocabularies, labels, calibration statistics, and manifests
-are schema-versioned JSON. CSV does not appear at runtime; it may appear in
-training and acquisition pipelines, which are out of scope here.
+**U01:** Every operation must state the quantity its uncertainty concerns, the
+sources of variation it covers, and those it omits. Use the following
+requirements instead of requiring every package to offer one method from a
+common menu.
 
-Model weights and any artifact bundle above 5 MB live in the
-`gojiberries` Hugging Face organization, pinned to a full 40-character
-commit SHA, with a model card. The package downloads through the Hugging
-Face cache and verifies a per-file SHA-256 manifest after download; the
-revision pin fixes what the artifact is, and the hash catches a corrupted
-or tampered copy the pin alone cannot. A `<PACKAGE>_MODEL_DIR` environment
-variable selects a local mirror, and a result produced from a mirror must
-say so in its provenance columns rather than reporting the Hub revision.
+| Quantity or claim                                                 | Requirement                                                                                                                                                                                                    |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Descriptive proportion in a fixed enumeration or released extract | Report denominator, coverage, filtering, rounding, and suppression. Sampling intervals are not required.                                                                                                       |
+| Population share estimated from a sample                          | Use intervals appropriate to the sampling design, weights, clustering, and denominator. A binomial interval requires its own sampling assumptions.                                                             |
+| Learned score or composition                                      | Report uncertainty in held-out performance and calibration. Per-name intervals are required only when the operation claims to quantify per-name estimation uncertainty, and must be validated for that target. |
+| Prediction set                                                    | Specify the predicted outcome and nominal coverage, the assumptions for coverage, and achieved coverage and set size on independent evaluation data.                                                           |
+| Derived quantity or aggregate application                         | Propagate relevant component uncertainty and dependence, or state what is held fixed; assess sensitivity to structural assumptions and population mismatch.                                                    |
 
-Bundles of 5 MB or less may ship inside the wheel instead, under the same
-discipline: a manifest, a pinned hash checked at load, and the same
-provenance columns. The threshold is a wheel-size budget, not a quality
-tier; small deterministic tables are not second-class artifacts.
+A census enumeration can contain coverage and recording errors without having
+sampling error for its observed totals. Interpreting its counts as a sample from
+a broader population requires an explicit additional model. Wilson bounds do not
+measure these other errors. The Census surname files are enumeration aggregates
+with disclosure suppression
+([Census Bureau](https://www.census.gov/data/developers/data-sets/surnames.html)).
 
-## Evaluation
+**U02:** A bootstrap interval for overall log loss or accuracy must stay with
+that metric. It is not a per-name probability interval. Ensemble or Monte Carlo
+dropout variation may be reported as model variability, but does not establish
+confidence-interval coverage. Declare the stochastic procedure and validate any
+stronger claim. Conformal sets usually offer marginal coverage under
+exchangeability, not automatic coverage for each name, subgroup, or shifted
+population ([Angelopoulos and Bates](https://arxiv.org/abs/2107.07511)).
 
-A shipped artifact must have been produced under the package's declared
-evaluation contract, and its held-out metrics must be published in the
-repository. If the artifact predates the evaluation contract, the package
-retrains or recalibrates before its next release; publishing metrics the
-shipped weights never earned is worse than publishing none.
+Use the contract's uncertainty column names and record the method actually
+returned. When no defensible per-name interval is available, say so and omit its
+endpoint columns; do not invent an interval to satisfy conformance.
 
-The rules that make those metrics mean something: split source rows before
-any balancing or augmentation; learn vocabulary only from training rows;
-keep calibration fitting and conformal evaluation disjoint; and report the
-evaluation unit and weighting with every metric, because record-weighted
-and name-weighted accuracy answer different questions.
+## Evaluation and transfer
+
+**E01:** Split at the unit required by the claim, before augmentation,
+balancing, or learned preprocessing. For unseen-name performance, keep
+normalized, representation-equivalent names in one partition. Account for
+repeated people, households, aliases, and shared source records. For a claim
+about new regions, sources, or periods, evaluate those held-out contexts. Random
+row splitting alone does not establish either claim.
+
+Keep training, model selection, calibration fitting, and final evaluation
+separate. A cross-fitting alternative must document how each assessed
+observation is excluded from every fitted component used to predict it. Learn
+vocabularies on training data, or identify externally fixed vocabularies and any
+exposure to evaluation sources. A conformal procedure must justify its
+calibration design separately from probability calibration.
+
+**E02:** Compare models and relevant simple baselines on the same clean
+evaluation data. Report name-weighted and record-weighted metrics where counts
+permit; call weights population weights only when justified. Publish coverage,
+abstention reasons, performance on answered rows, and diagnostics by relevant
+script, source, geography, support, and name novelty. Resampling must respect
+the independent unit. Mark contaminated or reused evaluation data as
+developmental.
+
+**E03:** Calibration and uncertainty evidence apply to the evaluated population.
+Transfer to another population must be assessed, or explicitly marked
+unassessed. Changes in source, time, selection, or geography can invalidate
+uncertainty estimates
+([Ovadia et al., 2019](https://proceedings.neurips.cc/paper_files/paper/2019/hash/8558cb408c1d76621371888657d2eb1d-Abstract.html)).
+
+A prior-shift option is optional. It must state the assumed stability of the
+input distribution within each class, the source and target priors, support
+conditions, and sensitivity to violations. Prior adjustment does not correct
+arbitrary population differences and must preserve unsupported-input
+abstentions. Reapplying a label decision rule to supported adjusted
+distributions follows C06.
+
+**E04:** Validate aggregate applications against independently observed
+aggregate quantities with matched definitions where available. Report weighting,
+selection from abstention, and sensitivity to reference populations and missing
+inputs. Without such evidence, aggregate validity is unassessed. Averaging
+scores or banning individual classification does not itself validate an
+aggregate estimator.
+
+**E05:** Derived calculations must distinguish an exact arithmetic result from
+its substantive interpretation. Mixing surname-specific state shares with
+statewide language shares defines a mixture. Interpreting it as a surname's
+language distribution additionally assumes language is independent of surname
+conditional on state, with compatible populations and dates, or requires
+evidence for a suitable alternative. Evaluation against targets generated by the
+same mixture does not validate that assumption against observed language data.
+
+## Artifacts and reproducibility
+
+**R01:** Runtime tables are typed Parquet validated against an explicit Arrow
+schema at load. Vocabularies, labels, calibration statistics, and manifests are
+schema-versioned JSON. CSV may be used for transport, acquisition, and training;
+it is not a runtime table format. These requirements apply the Python fleet's
+[runtime-asset baseline](https://github.com/gojiplus/py-canon/blob/main/STANDARD.md#runtime-assets)
+to name-analysis tables and metadata; record the baseline revision used in the
+assessment.
+
+Learned model weights and serialized estimators live outside the wheel,
+regardless of size, as py-canon requires. Host them in the `gojiberries` Hugging
+Face organization at a full 40-character commit SHA with a model card. Lookup
+tables and non-weight metadata may ship in a wheel when their bundle is at or
+below 5 MB; larger bundles use the same pinned hosting with a data card. The
+size allowance never exempts learned weights. These are engineering conventions,
+not evidence of statistical quality. Both paths require a trusted manifest and
+per-file SHA-256 verification before use. A hash manifest downloaded alongside
+files must itself be anchored to a trusted revision or digest.
+
+Packages must support a local mirror through `<PACKAGE>_MODEL_DIR` for model
+bundles or a documented analogous environment option for lookup bundles. Verify
+mirrors under the same rules and identify their origin and content digest in
+output provenance.
+
+**R02:** Preserve hashes or immutable revisions for source data, split
+membership, preprocessing and evaluation code, fitted artifacts, and the
+evidence record. The record must assess the exact shipped bundle. An older
+artifact may be evaluated on genuinely untouched data; retraining is required
+when needed to remedy leakage or inadequate performance, not merely because the
+evaluation document is newer. Restricted source data may remain restricted;
+disclose limits to independent reproduction.
+
+**R03:** Sensitive aggregate releases must document suppression and test whether
+published totals or overlapping tables reconstruct withheld cells. A minimum
+cell count alone is not a disclosure guarantee. Distinguish reproducible private
+training inputs from artifacts approved for release.
 
 ## Framing
 
-Package documentation states, prominently and in its own words, that
-outputs are name-pattern estimates from a stated reference population and
-do not establish a person's identity, ancestry, citizenship, religion,
-caste, race, or ethnicity, and that individual profiling and
-consequential-decision uses are out of scope. Function and column names
-follow the same discipline: name the pattern estimated, not the identity
-inferred, as in `estimate_muslim_name_pattern` rather than
-`predict_religion`.
+Documentation and examples must describe name patterns or observed group
+compositions under the stated reference population. They must not present
+outputs as establishing a person's identity, ancestry, citizenship, religion,
+caste, race, ethnicity, gender, residence, or language. Individual profiling and
+consequential decisions are outside the intended use. Function and column names
+must name the estimated quantity. Aggregate research still requires the
+validation described above.
 
-## Relationship to py-canon
+## Conformance and maintenance
 
-[py-canon](https://github.com/gojiplus/py-canon) owns build backend, lint,
-type checking, test and coverage gates, docs, CI, and release mechanics.
-This standard assumes all of it and adds nothing to it. A rule that belongs
-to how a package is built goes to py-canon; a rule that belongs to what a
-result means goes here.
+Record conformance per operation and artifact using [EVIDENCE.md](EVIDENCE.md).
+Assess output behavior, artifact integrity, and empirical support separately,
+with links to executable tests and evaluation results.
+[ADOPTION.md](ADOPTION.md) indexes these records. Unreviewed evidence is
+unassessed, not a pass; `not-applicable` needs an operation-specific reason.
+Every automated assessment must identify the checker version, specification
+revision, checks executed, and checks skipped or unavailable. An empty or
+incomplete run cannot establish full conformance. A waiver records an accepted
+limitation; it does not turn a failed or unassessed requirement into a pass.
 
-## Conformance
+[CONFORMANCE.md](CONFORMANCE.md) supplies boundary examples for package tests.
+It is not a validator. A future shared test suite may check stable requirements
+across implementations; it cannot certify statistical adequacy. Packages own
+their implementation and evidence. Skills can guide this work but must reference
+a specific standard version and cannot serve as conformance evidence.
 
-Conformance is assessed against [ADOPTION.md](ADOPTION.md), which records
-each package's status and open migration items. A shared conformance test
-suite that packages run in CI is the intended next step once two or more
-packages conform; until it exists, each package's own contract tests, in
-the style of naampy's `test_runtime_contract.py`, are the check.
+Reuse [preen](https://github.com/gojiplus/preen) for the Python package checks
+it already implements. Any future Appellation checker should add result behavior
+and evidence-reference checks, without duplicating packaging or release logic.
+Keep detection separate from fixes. A tool must not change a denominator,
+evaluation split, or uncertainty interpretation merely to make a check pass.
+
+[py-canon](https://github.com/gojiplus/py-canon) owns build, lint, type
+checking, test infrastructure, documentation builds, and releases. Appellation
+owns result meaning and its evidentiary requirements. Changes to this standard
+go through a PR with rationale, affected operations, examples, and migration
+consequences. Record semantic changes in the contract history and assess them
+before declaring a new version adopted.
