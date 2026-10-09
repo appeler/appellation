@@ -1,98 +1,132 @@
 # Adoption
 
-Status as of 2026-08-19. Instate and pranaam are migrated and released.
-Outkast still has an unpublished breaking release that its migration should
-fold into, so users take one break rather than two.
+Standard revision: 1.2, dated 2026-10-09. No package has been reassessed against
+1.2 in this repository. The migration facts below were recorded on 2026-08-19;
+they are historical, not a check of current releases.
 
-## Status
+## Assessment register
 
-| Standard | ethnicolr | naampy | pranaam | outkast | instate |
-| --- | --- | --- | --- | --- | --- |
-| Verbs (`lookup_*` / `estimate_*`) | yes | yes | yes | yes | yes |
-| Canonical signature (`data`, `*_column`, keyword-only) | yes | no, sequence-only | yes | close, arg named `frame` | yes |
-| 0 to 1 calibrated probabilities | yes | yes | yes | yes, proportions | yes, temperature-scaled |
-| Explicit abstention, shared reasons | yes | yes, hyphenated | yes, hyphenated | yes, own `secc_*` names, underscores | yes, hyphenated |
-| Contract columns | 1.0 in full | parallel names, gaps | 1.1 in full, score form | own vocabulary | 1.1 in full, composition form |
-| Uncertainty mechanism | conformal, MC, Wilson, prior | none in API | Monte Carlo dropout, prior shift | none, enumeration | calibration only; intervals open |
-| Artifacts on HF, SHA-pinned | yes | yes, plus per-file SHA-256 | yes, plus per-file SHA-256 | vendored, 628 KB, hash in source | yes, plus per-file SHA-256 |
-| Runtime Parquet and JSON, no CSV | yes | yes | yes, no tables | yes | yes |
-| Non-identity framing | yes | yes | yes | yes | yes |
-| Evaluation contract met by shipped artifacts | yes | yes | yes | not applicable | yes |
+Conformance is assessed per operation, artifact, and claim scope. Populate this
+register from package-owned [evidence records](EVIDENCE.md), with immutable
+links to implementation tests, artifacts, and evaluations. Split a package row
+into its individual operations when assessing it. A package-wide yes/no would
+hide differences between lookup, model, and derived paths.
 
-Instate's column reads its 3.0 branch
-([appeler/instate#53](https://github.com/appeler/instate/pull/53)), the
-first migration completed under this standard and the first emitter of
-contract 1.1. Its language target also moved from invented geometric
-weights to Census 2011 C-16 mother-tongue shares, and a recorded experiment
-justifies deriving language from the state composition instead of training
-a second model (held-out log loss 1.523 for the transform vs 1.566 direct).
+| Package   | Historical output baseline                                                                    | 1.2 output behavior | 1.2 artifact integrity | 1.2 empirical support |
+| --------- | --------------------------------------------------------------------------------------------- | ------------------- | ---------------------- | --------------------- |
+| ethnicolr | Contract 1.0 recorded                                                                         | unassessed          | unassessed             | unassessed            |
+| naampy    | Parallel column names and incomplete common metadata recorded                                 | unassessed          | unassessed             | unassessed            |
+| pranaam   | Contract 1.1 score form recorded in [PR 60](https://github.com/appeler/pranaam/pull/60)       | unassessed          | unassessed             | unassessed            |
+| outkast   | Package-specific status vocabulary recorded                                                   | unassessed          | unassessed             | unassessed            |
+| instate   | Contract 1.1 composition form recorded in [PR 53](https://github.com/appeler/instate/pull/53) | unassessed          | unassessed             | unassessed            |
 
-## Migration items
+The
+[previous adoption snapshot](https://github.com/appeler/appellation/blob/a2f383fa5978bb8ee201ba8661fd3155d32eaf81/ADOPTION.md)
+contains the full historical matrix. Its calibration and evaluation entries were
+broad claims rather than linked operation-specific assessments. They do not
+establish support under the revised requirements. A missing assessment here does
+not establish that a package's evidence is inadequate.
 
-### ethnicolr (2.0.0 on PyPI)
+## Migration work
 
-Emit contract 1.1: add `result_form`, bump
-`inference_contract_version`. Replace `docs/source/inference_contract.md`
-with a pointer to this repository. Add per-file SHA-256 verification to
-`model_artifacts.py`, which currently trusts the revision pin alone.
+Every package must review the revised meanings in contract 1.2 before changing
+`inference_contract_version`. This includes lookup versus estimate framing,
+missing values, uncertainty metadata, and local-artifact identity. A version
+bump alone is not migration. The items below are review targets; verify their
+current implementation before making changes.
 
-### outkast (2.0.0 built, PyPI has 1.0.0)
+### outkast
 
-Fold into the unpublished 2.0.0 so users take one break, not two: rename
-the `secc_*` status columns to the contract's boolean `scored` and
-`abstained` plus `abstention_reason`; respell reasons with hyphens, with
-`insufficient_support` becoming `insufficient-evidence` and
-`unsupported_context` becoming `unsupported-context`; add the common
-columns as a `composition`-form result; rename the `frame` argument to
-`data`. Delete the dead legacy `outkast/utils.py`, which is still autodoc'd.
-Then publish.
+Use the deterministic lookup as the first complete adoption. Define the filtered
+SECC source, state/birth-year/surname unit, retained categories, and
+denominator. Reconcile counts and proportions; document retention, suppression,
+and reconstruction checks. Descriptive enumeration shares need no invented
+sampling intervals. Any inference beyond those source cells needs separate
+evidence.
 
-### naampy (0.11.0 on PyPI)
+The historical migration items were to replace `secc_*` status fields with
+boolean `scored` and `abstained` plus `abstention_reason`; change
+`insufficient_support` to `insufficient-evidence` and other reason tokens to
+hyphens; adopt composition form; rename the `frame` argument to `data`; and
+remove dead `outkast/utils.py` and its autodoc reference. Verify input collision
+behavior against the contract as well.
 
-Rename the parallel columns to contract names, `score_target` to `target`
-and `calibration_population` to `calibration_reference`, and add the
-missing common columns as a `score`-form result, which 1.1 now defines so
-that the no-label design is conformant rather than a violation. Add the
-DataFrame-and-column call form. Surface the bootstrap intervals already
-computed for the model card as `_lower` and `_upper` columns. Decide
-deliberately whether the dropped state and birth-year conditioning returns;
-the standard does not force it, but the silence should end.
+The August record described an unpublished 2.0.0. Check current release state
+before selecting a migration version; that old window is not an instruction to
+publish now.
 
-### pranaam (0.9.0 on PyPI, released 2026-08-19)
+### naampy
 
-Migrated ([#60](https://github.com/appeler/pranaam/pull/60)): contract 1.1
-score form, canonical signature, blanks abstain instead of raising, Monte
-Carlo dropout intervals and a prior-shift option, dead v1 and v2 module
-deleted, copier description fixed. The label went away rather than moving:
-for a binary target it is a cutoff applied on the caller's behalf and
-carries no information the score does not, so `uncertain-score` abstention
-went with it. First package to meet the uncertainty bar.
+Use a learned score as the second adoption. Define the female source-label share
+among retained binary-label electoral records, exclusions, and record versus
+name weighting. Audit normalized-name partitions and the calibration assessment
+for the exact shipped artifact. Assess the exact lookup as a separate operation.
 
-Released without the independent second-model review, which the maintainer
-accepted knowingly when both reviewers were unavailable. A self-review
-afterwards caught prior shifting turning an abstaining row's missing score
-into a certain 1.0. That is fixed and tested, but the release is worth a
-second pass when a reviewer is available.
+The historical migration items were to rename `score_target` to `target` and
+`calibration_population` to `calibration_reference`, add missing common columns,
+and add the DataFrame-and-column call form. Explain whether state and birth-year
+conditioning is supported and how pooling changes the target.
 
-### instate (3.0.0 on PyPI, released 2026-08-19)
+Keep bootstrap intervals for model-card performance metrics with those metrics.
+The old instruction to expose them as per-name `_lower` and `_upper` columns was
+incorrect. Per-name intervals need a distinct target, procedure, and validation;
+their absence alone does not violate 1.2.
 
-Migrated ([#53](https://github.com/appeler/instate/pull/53)): composition
-API under contract 1.1, retrained and temperature-scaled model with
-untouched-test metrics (modal top-1 0.534 / top-3 0.770), census-based
-language shares replacing the geometric weights, artifacts on the pinned
-Hub revision with per-file SHA-256, wheel down from 34.5 MB to 50 KB. The
-2.1.0 build was skipped; everything shipped as 3.0.0. Remaining: an
-interval mechanism to meet the uncertainty bar. Pranaam's Monte Carlo
-dropout is the closest precedent.
+### ethnicolr
 
-## Sequencing
+Assess each Census lookup, voter-file model, and Wikipedia/Wikidata model
+separately. Define their different label sources, populations, and weighting.
+Review whether Census lookup intervals assume a broader population model; do not
+describe enumeration counts as a probability sample without justification. Audit
+evaluation splits against the intended unseen-name or source-transfer claim.
 
-Instate and pranaam are done. Outkast is next, because its unpublished
-2.0.0 is a closing window, then naampy, then ethnicolr's own 1.1 bump.
+The historical migration items were to add `result_form`, replace the
+package-owned inference-contract document with a versioned pointer here, and add
+per-file SHA-256 verification rather than relying on a revision pin alone. Adopt
+the current contract after reviewing all 1.2 requirements.
 
-A shared contract package was weighed after the second migration and
-declined: the maintainer prefers each package owning its contract code over
-a fleet-wide dependency. Keep the copies in step by hand and treat any
-divergence between them as a defect. Instate's `_contract.py` is the
-composition-form reference and pranaam's is the score-form one; copy from
-whichever matches the package's result form.
+### pranaam
+
+The August record describes a released 0.9.0 migration with score form,
+canonical signature, explicit blank-name abstention, Monte Carlo dropout
+summaries, and prior adjustment. Reassess calibration and label provenance for
+the shipped model. Document dropout variability as such, and assess any stronger
+interval claim separately. State prior-shift assumptions and preserve missing
+scores through adjustment.
+
+That release lacked independent second-model review. The record also notes a
+subsequently fixed bug where prior adjustment converted an abstaining row's
+missing score to 1.0. Verify the regression test and the artifact/release
+containing the fix during reassessment. Offering dropout summaries alone does
+not establish adequate uncertainty evidence.
+
+### instate
+
+The August record describes a released 3.0.0 migration with composition form, a
+temperature-scaled state model, and census-based language mixtures. Assess the
+lookup, state model, and language calculation separately. Document retained
+surname-state cells, denominators, dates, and coverage.
+
+For the language calculation, state the assumption behind substituting statewide
+language shares for surname-specific shares within states. Separate reproducing
+that mixture from validation against independently observed language data. The
+old comparison of transformed versus direct model loss does not by itself
+establish the substantive interpretation.
+
+Review state-model calibration and uncertainty in held-out metrics. A per-name
+interval mechanism is no longer a universal requirement; add one only with a
+defined target and evidence for its interpretation.
+
+## Applying the standard
+
+Complete the outkast lookup record, then the naampy model record, before
+extracting shared executable checks. Continue the remaining migrations against
+the same requirements, with package-specific evidence. Existing instate and
+pranaam contract implementations are examples of 1.1 behavior, not authoritative
+implementations of 1.2.
+
+Each package owns its implementation. Shared fixtures or a development helper
+may follow demonstrated repeated checks; this revision introduces no runtime
+dependency. The
+[design-pattern comparison](<reports/Standards library design patterns.md>)
+explains this choice and the conditions for revisiting it.
